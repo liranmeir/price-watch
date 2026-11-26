@@ -89,6 +89,7 @@ export default async function AuthorizePage({ searchParams }: PageProps) {
             <li>Read your tracked items and their current/target prices</li>
             <li>Add a new tracked item from a product URL</li>
             <li>Add another store&apos;s link to an existing tracked item</li>
+            <li>Re-check one link&apos;s price right now</li>
           </ul>
           <p className="mt-3 text-xs text-blue-800">It cannot remove or archive anything.</p>
         </div>

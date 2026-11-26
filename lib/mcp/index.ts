@@ -21,8 +21,8 @@ export const SERVER_INSTRUCTIONS =
   'Price Watch tracks products the user wants to buy across whichever stores sell them. ' +
   'Start with price_watch_list_items for an overview of everything tracked and its current ' +
   'cheapest price, then use price_watch_get_item for one item\'s full link/price-history detail. ' +
-  'price_watch_add_item and price_watch_add_link are the only writes: adding a brand-new product, ' +
-  'or another store\'s link for a product already tracked. Nothing here deletes or archives.';
+  'price_watch_add_item and price_watch_add_link add new things to track; price_watch_recheck_link ' +
+  're-fetches one link\'s price right now instead of waiting for the daily cron. Nothing here deletes or archives.';
 
 /** Wraps a tool handler so failures come back as readable, actionable text. */
 function withErrorHandling<TArgs>(
@@ -371,6 +371,68 @@ Errors: "No tracked item with id '...'" if item_id doesn't exist.`,
         : `Added ${store_name || storeNameFromUrl(url)} as a link on "${item.name}", but the first price check failed (${result.error}).`;
 
       return { content: [{ type: 'text', text }], structuredContent: { link_id: link.id, extracted } };
+    }),
+  );
+
+  server.registerTool(
+    'price_watch_recheck_link',
+    {
+      title: 'Recheck a Link Now',
+      description: `Re-fetches one link's price right now, the same as the dashboard's "Check now" button, instead of waiting for the next daily cron run. Use this after price_watch_add_item/price_watch_add_link reports extracted=false (the first fetch failed), or whenever the user wants a fresher price than what's stored.
+
+Args:
+  - link_id (string, required): ProductLink id, from price_watch_get_item's "links" array
+
+Returns: { "extracted": boolean, "price": number | null, "currency": string | null }
+
+Errors: "No link with id '...'" if link_id doesn't exist — call price_watch_get_item to find the right one.`,
+      inputSchema: {
+        link_id: z.string().min(1).describe('ProductLink id, from price_watch_get_item.'),
+      },
+      outputSchema: {
+        extracted: z.boolean(),
+        price: z.number().nullable(),
+        currency: z.string().nullable(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    },
+    withErrorHandling('price_watch_recheck_link', async ({ link_id }) => {
+      const link = await prisma.productLink.findUnique({ where: { id: link_id } });
+      if (!link) {
+        throw new Error(`No link with id '${link_id}'. Call price_watch_get_item to find the right one.`);
+      }
+
+      const result = await fetchProductInfo(link.url);
+
+      await prisma.productLink.update({
+        where: { id: link_id },
+        data: {
+          lastCheckedAt: new Date(),
+          lastStatus: result.status,
+          lastError: result.error,
+          snapshots:
+            result.status === 'ok' && result.info
+              ? {
+                  create: {
+                    price: result.info.price,
+                    currency: result.info.currency,
+                    title: result.info.title,
+                    imageUrl: result.info.imageUrl,
+                    inStock: result.info.inStock,
+                  },
+                }
+              : undefined,
+        },
+      });
+
+      const extracted = result.status === 'ok';
+      const price = toNumberOrNull(result.info?.price);
+      const currency = result.info?.currency ?? null;
+      const text = extracted
+        ? `${link.storeName}: ${formatPrice(price, currency)}.`
+        : `${link.storeName}: check failed (${result.error}).`;
+
+      return { content: [{ type: 'text', text }], structuredContent: { extracted, price, currency } };
     }),
   );
 }

@@ -324,9 +324,10 @@ same as the pattern in my other dashboards:
 
 ## Talking to it from Claude (remote MCP server)
 
-`app/api/[transport]` serves four tools over MCP, so you can ask Claude
-(web, mobile, desktop) about your tracked items or add a new one by
-pasting a link in chat, instead of only through the dashboard:
+`app/api/[transport]` serves five tools over MCP, so you can ask Claude
+(web, mobile, desktop) about your tracked items, add a new one by
+pasting a link in chat, or get a fresh price immediately instead of only
+through the dashboard:
 
 | Tool | Does |
 | --- | --- |
@@ -334,6 +335,7 @@ pasting a link in chat, instead of only through the dashboard:
 | `price_watch_get_item` | One item's full link list, latest price per link, lowest ever |
 | `price_watch_add_item` | Start tracking a new product from a URL |
 | `price_watch_add_link` | Add another store's URL to an item that's already tracked |
+| `price_watch_recheck_link` | Re-fetch one link's price right now, instead of waiting for the daily cron |
 
 ### Connecting
 
