@@ -1,0 +1,21 @@
+sequenceDiagram
+    participant VC as Vercel Cron
+    participant CR as Cron route<br/>(/api/cron/check-prices)
+    participant DB as Postgres
+    participant EX as lib/extract
+    participant ST as Store pages
+
+    VC->>CR: GET, every 6h<br/>Authorization: Bearer CRON_SECRET
+    CR->>CR: verify CRON_SECRET
+    CR->>DB: find active ProductLinks<br/>(non-archived items only)
+    DB-->>CR: list of links
+
+    loop each link, with a politeness delay between
+        CR->>EX: fetchProductInfo(link.url)
+        EX->>ST: robots.txt check + GET product page
+        ST-->>EX: HTML or error
+        EX-->>CR: product info, or error + reason
+        CR->>DB: update lastCheckedAt / lastStatus /<br/>lastError, append PriceSnapshot if ok
+    end
+
+    CR-->>VC: { checked, ok, failed } summary

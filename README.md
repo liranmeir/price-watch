@@ -75,6 +75,92 @@ image doesn't drift from the diagram's source of truth.
   rows are append-only, which is what makes the history chart and
   "lowest ever" computation possible.
 
+## Data flow
+
+The diagram above is the static map of components; these two sequences
+are how data actually moves through them over time.
+
+**Adding an item / a link** (interactive, triggered from the browser):
+
+![Sequence diagram: browser submits a product URL to a server action, which calls lib/extract to check robots.txt then fetch and parse the product page (JSON-LD, falling back to Open Graph) for title, price, currency, image and stock status, or an error if disallowed or the fetch fails; the server action writes a TrackedItem, ProductLink and (if extraction succeeded) a PriceSnapshot to Postgres, then revalidates and redirects the browser to the new item's page](docs/dataflow-add-link.svg)
+
+**Scheduled recheck** (no browser involved — Vercel Cron drives it):
+
+![Sequence diagram: Vercel Cron calls the cron route every 6 hours with a bearer CRON_SECRET; the route verifies the secret, reads all active ProductLinks for non-archived items from Postgres, then for each link (with a politeness delay between) calls lib/extract to fetch and parse the product page and writes an updated lastCheckedAt/lastStatus/lastError plus a new PriceSnapshot on success back to Postgres, finally returning a checked/ok/failed summary to Cron](docs/dataflow-cron.svg)
+
+<details>
+<summary>Mermaid source for both sequence diagrams</summary>
+
+`docs/dataflow-add-link.mmd`:
+
+```mermaid
+sequenceDiagram
+    participant U as Browser (user)
+    participant SA as Server action<br/>(app/actions)
+    participant EX as lib/extract
+    participant ST as Store page
+    participant DB as Postgres
+
+    U->>SA: submit product URL<br/>(+ optional name / target price)
+    SA->>EX: fetchProductInfo(url)
+    EX->>ST: GET /robots.txt
+    ST-->>EX: allow / disallow
+    alt allowed
+        EX->>ST: GET product page
+        ST-->>EX: HTML
+        EX->>EX: parse JSON-LD,<br/>else Open Graph fallback
+        EX-->>SA: title / price / currency /<br/>image / inStock
+    else disallowed or fetch failed
+        EX-->>SA: error (reason recorded)
+    end
+    SA->>DB: create TrackedItem + ProductLink<br/>(+ PriceSnapshot if extraction ok)
+    DB-->>SA: new item id
+    SA-->>U: revalidate + redirect to<br/>/dashboard/[itemId]
+```
+
+`docs/dataflow-cron.mmd`:
+
+```mermaid
+sequenceDiagram
+    participant VC as Vercel Cron
+    participant CR as Cron route<br/>(/api/cron/check-prices)
+    participant DB as Postgres
+    participant EX as lib/extract
+    participant ST as Store pages
+
+    VC->>CR: GET, every 6h<br/>Authorization: Bearer CRON_SECRET
+    CR->>CR: verify CRON_SECRET
+    CR->>DB: find active ProductLinks<br/>(non-archived items only)
+    DB-->>CR: list of links
+
+    loop each link, with a politeness delay between
+        CR->>EX: fetchProductInfo(link.url)
+        EX->>ST: robots.txt check + GET product page
+        ST-->>EX: HTML or error
+        EX-->>CR: product info, or error + reason
+        CR->>DB: update lastCheckedAt / lastStatus /<br/>lastError, append PriceSnapshot if ok
+    end
+
+    CR-->>VC: { checked, ok, failed } summary
+```
+
+Re-render either with mermaid-cli after editing, e.g.:
+`npx @mermaid-js/mermaid-cli -i docs/dataflow-add-link.mmd -o docs/dataflow-add-link.svg`
+
+</details>
+
+- **Nothing is written until extraction finishes** — both flows call
+  `lib/extract` first and only write to Postgres once they have a result
+  (success or error), so a slow or failing store page never leaves a
+  half-written row.
+- **The cron route is intentionally "dumb"** — it does no retries or
+  smarts of its own beyond what `lib/extract`'s own fetch wrapper already
+  does; it just loops, waits between links, and records whatever comes
+  back. All the actual parsing logic is shared with the interactive path.
+- **`PriceSnapshot` is append-only in both flows** — a recheck never
+  overwrites the previous reading, which is what lets the dashboard chart
+  history and compute "lowest ever" across either flow's writes.
+
 ## Why this works across almost any store, without a scraper per site
 
 Most e-commerce sites publish the same two pieces of standard metadata for

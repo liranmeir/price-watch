@@ -1,0 +1,22 @@
+sequenceDiagram
+    participant U as Browser (user)
+    participant SA as Server action<br/>(app/actions)
+    participant EX as lib/extract
+    participant ST as Store page
+    participant DB as Postgres
+
+    U->>SA: submit product URL<br/>(+ optional name / target price)
+    SA->>EX: fetchProductInfo(url)
+    EX->>ST: GET /robots.txt
+    ST-->>EX: allow / disallow
+    alt allowed
+        EX->>ST: GET product page
+        ST-->>EX: HTML
+        EX->>EX: parse JSON-LD,<br/>else Open Graph fallback
+        EX-->>SA: title / price / currency /<br/>image / inStock
+    else disallowed or fetch failed
+        EX-->>SA: error (reason recorded)
+    end
+    SA->>DB: create TrackedItem + ProductLink<br/>(+ PriceSnapshot if extraction ok)
+    DB-->>SA: new item id
+    SA-->>U: revalidate + redirect to<br/>/dashboard/[itemId]
