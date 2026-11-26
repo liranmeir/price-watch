@@ -34,6 +34,11 @@ enough:
   password replaced it; see git history (`lib/auth.ts`, `app/api/auth/`)
   for the previous implementation to restore or adapt.
 
+The dashboard isn't the only door in: `/api/[transport]` serves the same
+data (and two write actions) to Claude over MCP, behind its own OAuth
+layer that still ultimately requires `SITE_PASSWORD` to get through — see
+"Talking to it from Claude" below.
+
 ## Architecture
 
 ![Box diagram with logos: the browser talks to the Next.js app hosted on Vercel; the app reads and writes prices to Neon Postgres, calls the scraper (lib/extract) which fetches product pages from store websites such as Nike, and is triggered every 6 hours by Vercel Cron](docs/architecture-logos.svg)
@@ -271,6 +276,7 @@ pnpm dev
 | `DATABASE_URL` / `DATABASE_URL_UNPOOLED` | Postgres (Vercel Postgres, Neon, Supabase, ...) |
 | `CRON_SECRET` | Random secret; set the same value as a Vercel environment variable so Vercel Cron's request is authorized |
 | `SITE_PASSWORD` | The one password that gates the whole app. **Required** — the dashboard is unreachable for everyone if this is empty (fails closed) |
+| `APP_URL` | Public origin, no trailing slash (e.g. `https://price-watch.liranmeir.com`). Used to build the remote MCP server's OAuth metadata |
 
 ### Scheduled price checks
 
@@ -316,6 +322,66 @@ same as the pattern in my other dashboards:
    up automatically under the project's "Cron Jobs" tab — no extra setup
    beyond `CRON_SECRET` above. See the Hobby-plan note just above.
 
+## Talking to it from Claude (remote MCP server)
+
+`app/api/[transport]` serves four tools over MCP, so you can ask Claude
+(web, mobile, desktop) about your tracked items or add a new one by
+pasting a link in chat, instead of only through the dashboard:
+
+| Tool | Does |
+| --- | --- |
+| `price_watch_list_items` | Every tracked item + its cheapest current price and target |
+| `price_watch_get_item` | One item's full link list, latest price per link, lowest ever |
+| `price_watch_add_item` | Start tracking a new product from a URL |
+| `price_watch_add_link` | Add another store's URL to an item that's already tracked |
+
+### Connecting
+
+1. In Claude, add a custom connector pointing at
+   `https://price-watch.liranmeir.com/api/mcp`.
+2. Claude registers itself (RFC 7591, no credentials needed for that step)
+   and sends you to `/login` if you're not already signed in, then to a
+   consent screen at `/oauth/authorize`.
+3. Approve, and the four tools appear.
+
+### Who can get in
+
+One gate: **the shared site password.** There's no per-user concept here
+(see "Access control" above) — registering a client is open and free, but
+the consent screen it leads to is behind the exact same `/login` as the
+dashboard, and the server action that issues the actual authorization
+code re-checks the password cookie independently rather than trusting
+that the page already did (see `app/oauth/authorize/actions.ts`). A
+client that registers but never gets a human through that login gets
+nothing.
+
+### Security design (same primitives as the dashboard's OAuth, see `lib/oauth.ts`)
+
+| Concern | Decision |
+| --- | --- |
+| Token storage | SHA-256 hashes only — the database never holds a usable credential |
+| Authorization codes | Hashed, single-use, 10-minute expiry |
+| PKCE | Required, S256 only — `plain` is rejected rather than accepted as a fallback |
+| Client secrets | None issued. Public clients authenticated by PKCE, per OAuth 2.1 |
+| Redirect URIs | https, or http on loopback for native clients, validated at registration |
+| Token lifetime | 1 hour, no refresh. Expired tokens are swept on the next exchange |
+
+Revoking access: delete the offending rows —
+
+```sql
+delete from "OAuthAccessToken" where "clientId" in (select id from "OAuthClient" where "clientId" = '<id>');
+delete from "OAuthClient" where "clientId" = '<id>';
+```
+
+— or just rotate `SITE_PASSWORD`, which invalidates every *future*
+consent (existing tokens keep working until they expire in an hour,
+since a token doesn't re-check the password after it's issued).
+
+`APP_URL` must be the real public origin the app is reachable at
+(`https://price-watch.liranmeir.com`, not a `*.vercel.app` preview) —
+the OAuth metadata documents are built from it, and a client handed the
+wrong origin can't complete the connection.
+
 ## Data model
 
 ```
@@ -342,6 +408,9 @@ lets the dashboard chart price history and find the all-time low.
 - `app/api/cron/check-prices/` — the scheduled re-check job.
 - `app/dashboard/` — item list + per-item detail page (chart, links,
   add-link form).
+- `lib/mcp/`, `app/api/[transport]/`, `lib/oauth.ts`, `app/oauth/authorize/`,
+  `app/api/oauth/`, `app/.well-known/` — the remote MCP server and its
+  OAuth layer (see "Talking to it from Claude" above).
 - `lib/site-auth.ts`, `middleware.ts`, `app/login/` — the shared-password
   gate (see "Access control" above).
 

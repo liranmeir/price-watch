@@ -75,3 +75,46 @@ model PriceSnapshot {
 
   @@index([linkId, fetchedAt])
 }
+
+// --- OAuth 2.1 for the remote MCP server (app/api/[transport]) ---
+// Lets Claude on the web/mobile read and add tracked items through a chat,
+// not just the dashboard. Codes and tokens are stored as SHA-256 hashes
+// (see lib/oauth.ts), PKCE S256 is mandatory, and no client secrets are
+// issued. There's no User model here (this app has one shared password,
+// not per-user accounts - see lib/site-auth.ts), so unlike a multi-tenant
+// app's OAuth tables, these carry no userId: a valid token is simply
+// "the one person who knows SITE_PASSWORD", the same as the dashboard itself.
+model OAuthClient {
+  id           String   @id @default(cuid())
+  clientId     String   @unique @default(cuid())
+  name         String
+  redirectUris String[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  accessTokens OAuthAccessToken[]
+  authCodes    OAuthAuthCode[]
+}
+
+model OAuthAuthCode {
+  id                  String   @id @default(cuid())
+  codeHash            String   @unique
+  expiresAt           DateTime
+  redirectUri         String
+  codeChallenge       String
+  codeChallengeMethod String
+  clientId            String
+  createdAt           DateTime @default(now())
+
+  client OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model OAuthAccessToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  expiresAt DateTime
+  clientId  String
+  createdAt DateTime @default(now())
+
+  client OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}

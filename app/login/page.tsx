@@ -19,7 +19,13 @@ export default function LoginPage() {
         setError(result.error ?? 'Incorrect password');
         return;
       }
-      router.push('/dashboard');
+      // Read callbackUrl directly from the browser location rather than
+      // Next.js's useSearchParams(), which would force this page out of
+      // static rendering and require a Suspense boundary for one query
+      // param. middleware.ts sets this when it bounces an unauthenticated
+      // request here (e.g. from /oauth/authorize) so login returns there.
+      const callbackUrl = new URLSearchParams(window.location.search).get('callbackUrl');
+      router.push(callbackUrl && callbackUrl.startsWith('/') ? callbackUrl : '/dashboard');
       router.refresh();
     });
   }
