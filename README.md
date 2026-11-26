@@ -11,10 +11,37 @@ cheapest offer on one page.
 
 ## Architecture
 
-![Architecture diagram: browser talks over HTTPS to the Next.js app on Vercel, which fans out to dashboard pages, server actions, the NextAuth route, and the cron route; server actions and the cron route both go through lib/extract (robots.txt check, then JSON-LD parser, then Open Graph fallback) to reach store product pages, server actions and dashboard pages read/write Postgres, the NextAuth route checks Google OAuth against the ALLOWED_EMAILS gate, and Vercel Cron triggers the cron route every 6 hours with a bearer CRON_SECRET](docs/architecture.svg)
+![Box diagram: the browser talks to the Next.js app on Vercel; the app reads and writes prices to Neon Postgres, calls the scraper (lib/extract) which fetches product pages from store websites, checks sign-in against Google OAuth, and is triggered every 6 hours by Vercel Cron](docs/architecture-simple.svg)
 
 <details>
-<summary>Mermaid source (click to expand/edit)</summary>
+<summary>More detailed component diagram (click to expand)</summary>
+
+![Architecture diagram: browser talks over HTTPS to the Next.js app on Vercel, which fans out to dashboard pages, server actions, the NextAuth route, and the cron route; server actions and the cron route both go through lib/extract (robots.txt check, then JSON-LD parser, then Open Graph fallback) to reach store product pages, server actions and dashboard pages read/write Postgres, the NextAuth route checks Google OAuth against the ALLOWED_EMAILS gate, and Vercel Cron triggers the cron route every 6 hours with a bearer CRON_SECRET](docs/architecture.svg)
+
+Mermaid source for both, to edit and re-render
+(`npx @mermaid-js/mermaid-cli -i docs/<file>.mmd -o docs/<file>.svg`):
+
+`docs/architecture-simple.mmd`:
+
+```mermaid
+flowchart LR
+    User["Browser<br/>(user)"]
+    App["Next.js App<br/>(Vercel)"]
+    Scraper["Scraper<br/>(lib/extract)"]
+    DB[("Neon Postgres")]
+    Cron["Vercel Cron"]
+    Stores["Store websites<br/>(Nike, Footlocker, ...)"]
+    Google["Google OAuth"]
+
+    User <-- "sign in,<br/>view dashboard" --> App
+    App <-- "read / write<br/>prices" --> DB
+    Cron -- "triggers every 6h" --> App
+    App -- "calls" --> Scraper
+    Scraper -- "fetches<br/>product pages" --> Stores
+    App -- "sign-in check" --> Google
+```
+
+`docs/architecture.mmd` (the detailed one):
 
 ```mermaid
 flowchart TD
@@ -57,11 +84,6 @@ flowchart TD
     Extract -- "fetch" --> Stores
     AuthRoute --> Google
 ```
-
-`docs/architecture.mmd` is the source the image was rendered from
-(`npx @mermaid-js/mermaid-cli -i docs/architecture.mmd -o docs/architecture.svg`)
-— edit the Mermaid above and re-render if the architecture changes, so the
-image doesn't drift from the diagram's source of truth.
 
 </details>
 

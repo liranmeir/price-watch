@@ -1,0 +1,15 @@
+flowchart LR
+    User["Browser<br/>(user)"]
+    App["Next.js App<br/>(Vercel)"]
+    Scraper["Scraper<br/>(lib/extract)"]
+    DB[("Neon Postgres")]
+    Cron["Vercel Cron"]
+    Stores["Store websites<br/>(Nike, Footlocker, ...)"]
+    Google["Google OAuth"]
+
+    User <-- "sign in,<br/>view dashboard" --> App
+    App <-- "read / write<br/>prices" --> DB
+    Cron -- "triggers every 6h" --> App
+    App -- "calls" --> Scraper
+    Scraper -- "fetches<br/>product pages" --> Stores
+    App -- "sign-in check" --> Google
