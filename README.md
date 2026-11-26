@@ -9,23 +9,30 @@ add more links for the same product from other stores → a scheduled job
 rechecks all of them periodically → see price history and the current
 cheapest offer on one page.
 
-## ⚠️ No auth right now
+## Access control
 
-There is currently **no sign-in and no access control** — anyone with the
-URL can view and add/edit/delete everything. This was removed deliberately
-to get a first deploy working quickly without needing Google OAuth
-credentials set up. Before treating this as more than a personal/throwaway
-deployment:
+The whole app sits behind a **single shared password** — not per-user
+accounts, just a deterrent against the open internet. `SITE_PASSWORD` is
+one env var; `/login` checks it and sets a signed cookie (sha256 of the
+password, computed with the Web Crypto API so it works in both the Edge
+and Node runtimes); `middleware.ts` gates every `/dashboard/*` route on
+that cookie and **fails closed** — if `SITE_PASSWORD` is ever unset,
+nobody gets in, rather than silently leaving the dashboard open. See
+`lib/site-auth.ts`.
 
-- At minimum, turn on **Vercel's own Deployment Protection** (Project
-  Settings → Deployment Protection) so only your team can reach it, at
-  least until/unless you attach a custom domain (Vercel's protection
-  exempts custom domains by default).
-- To bring back real per-user sign-in, NextAuth + a Google-account
-  allowlist is the straightforward option — it's how this app worked
-  before; see git history (`lib/auth.ts`, `middleware.ts`,
-  `app/login/`, `app/api/auth/`) for the previous implementation to
-  restore or adapt.
+This is deliberately simple (no Google OAuth setup needed), not
+bank-grade: everyone who knows the one password has full access to
+everything, and the password isn't rate-limited. If that's ever not
+enough:
+
+- **Vercel's own Deployment Protection** (Project Settings → Deployment
+  Protection) adds a second layer, though note it exempts custom domains
+  by default — it only covers the `*.vercel.app` URLs unless you turn
+  that off too.
+- For real per-user sign-in, NextAuth + a Google-account allowlist is the
+  straightforward option — this app actually had that before this shared
+  password replaced it; see git history (`lib/auth.ts`, `app/api/auth/`)
+  for the previous implementation to restore or adapt.
 
 ## Architecture
 
@@ -72,7 +79,7 @@ flowchart LR
 ```mermaid
 flowchart TD
     subgraph Client
-        Browser["Browser<br/>(no sign-in required)"]
+        Browser["Browser<br/>(shared password)"]
     end
 
     subgraph Vercel["Vercel (hosting + CI/CD)"]
@@ -244,8 +251,9 @@ real, live product page end-to-end. Before relying on this:
 
 Next.js (App Router) + Prisma + Postgres + Tailwind — same pattern as
 other dashboards I've built, trimmed down: no multi-tenant/organization
-model, since this is a single-user (or small household) tool, and (for
-now — see "No auth right now" above) no sign-in layer either.
+model, since this is a single-user (or small household) tool gated by a
+single shared password rather than per-user accounts (see
+"Access control" above).
 
 ## Setup
 
@@ -262,6 +270,7 @@ pnpm dev
 | --- | --- |
 | `DATABASE_URL` / `DATABASE_URL_UNPOOLED` | Postgres (Vercel Postgres, Neon, Supabase, ...) |
 | `CRON_SECRET` | Random secret; set the same value as a Vercel environment variable so Vercel Cron's request is authorized |
+| `SITE_PASSWORD` | The one password that gates the whole app. **Required** — the dashboard is unreachable for everyone if this is empty (fails closed) |
 
 ### Scheduled price checks
 
@@ -289,9 +298,10 @@ same as the pattern in my other dashboards:
    app, with `DATABASE_URL`/`DATABASE_URL_UNPOOLED` set on the Vercel
    project. Using something else instead? Replace those two in Project
    Settings → Environment Variables.
-3. **Environment variables**: `CRON_SECRET` is already set. Once you have
-   a production domain, nothing else is required to run (see "No auth
-   right now" above for the access-control gap this leaves open).
+3. **Environment variables**: `CRON_SECRET` and `SITE_PASSWORD` are
+   already set — the dashboard will refuse everyone (fails closed) if
+   `SITE_PASSWORD` is ever missing, so don't remove it without replacing
+   it (see "Access control" above).
 4. **Deploys = CI**: Vercel runs `pnpm build` on every push, which is
    `prisma generate && pnpm run verify && next build` — `verify` is the
    full Vitest suite. **A failing test fails the build and blocks the
@@ -332,6 +342,8 @@ lets the dashboard chart price history and find the all-time low.
 - `app/api/cron/check-prices/` — the scheduled re-check job.
 - `app/dashboard/` — item list + per-item detail page (chart, links,
   add-link form).
+- `lib/site-auth.ts`, `middleware.ts`, `app/login/` — the shared-password
+  gate (see "Access control" above).
 
 ## Being a good citizen
 
