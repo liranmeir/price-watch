@@ -9,6 +9,22 @@ export function formatPrice(price: number | null | undefined, currency: string |
   }
 }
 
+/**
+ * Formats a user-set target price. Unlike formatPrice (used for prices we
+ * actually fetched, which always carry a real currency), a target price can
+ * be set before any price check has ever run — there's no currency to fall
+ * back on then, and silently defaulting to USD would misrepresent a price
+ * the user meant in a different currency (e.g. ILS on an Israeli store).
+ * Render the bare number instead of guessing when the currency is unknown.
+ */
+export function formatTargetPrice(price: number | null | undefined, currency: string | null | undefined): string {
+  if (price === null || price === undefined) return '—';
+  if (currency && /^[A-Z]{3}$/.test(currency)) {
+    return formatPrice(price, currency);
+  }
+  return price.toFixed(2);
+}
+
 /** Derives a human-readable store name from a URL's hostname, e.g. "www.nike.com" -> "Nike". */
 export function storeNameFromUrl(url: string): string {
   try {

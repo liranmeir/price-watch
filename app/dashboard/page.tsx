@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
-import { formatPrice } from '@/lib/currency';
+import { formatPrice, formatTargetPrice } from '@/lib/currency';
 import { cheapestCurrentOffer } from '@/lib/pricing';
 import { AddItemForm } from '@/components/AddItemForm';
 
@@ -62,7 +62,9 @@ export default async function DashboardPage() {
                   {offer ? formatPrice(offer.price, offer.currency) : 'No price yet'}
                 </p>
                 {item.targetPrice && (
-                  <p className="text-xs text-slate-500">Target: {formatPrice(Number(item.targetPrice), null)}</p>
+                  <p className="text-xs text-slate-500">
+                    Target: {formatTargetPrice(Number(item.targetPrice), item.targetCurrency)}
+                  </p>
                 )}
               </div>
             </Link>

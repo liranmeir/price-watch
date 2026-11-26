@@ -17,6 +17,10 @@ const createItemSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
   note: z.string().trim().max(2000).optional(),
   targetPrice: z.number().positive().optional(),
+  /** ISO 4217 code (e.g. "ILS", "USD"). A targetPrice with no currency
+   *  renders as a bare number rather than a guessed-wrong symbol - see
+   *  formatTargetPrice. */
+  targetCurrency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/).optional(),
 });
 
 /**
@@ -32,7 +36,7 @@ export async function createTrackedItemFromUrl(
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' };
   }
-  const { url, name, note, targetPrice } = parsed.data;
+  const { url, name, note, targetPrice, targetCurrency } = parsed.data;
 
   const result = await fetchProductInfo(url);
 
@@ -43,6 +47,7 @@ export async function createTrackedItemFromUrl(
         note,
         imageUrl: result.info?.imageUrl ?? null,
         targetPrice,
+        targetCurrency,
         links: {
           create: {
             url,
@@ -80,6 +85,7 @@ const updateItemSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
   note: z.string().trim().max(2000).nullable().optional(),
   targetPrice: z.number().positive().nullable().optional(),
+  targetCurrency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/).nullable().optional(),
 });
 
 export async function updateTrackedItem(

@@ -16,12 +16,14 @@ export function AddItemForm() {
     const name = String(formData.get('name') ?? '').trim();
     const targetPriceRaw = String(formData.get('targetPrice') ?? '').trim();
     const targetPrice = targetPriceRaw ? Number(targetPriceRaw) : undefined;
+    const targetCurrency = targetPrice ? String(formData.get('targetCurrency') ?? '') : undefined;
 
     startTransition(async () => {
       const result = await createTrackedItemFromUrl({
         url,
         name: name || undefined,
         targetPrice,
+        targetCurrency,
       });
       if (!result.success) {
         setError(result.error ?? 'Something went wrong');
@@ -48,7 +50,7 @@ export function AddItemForm() {
         <label className="mb-1 block text-xs text-slate-500">Name (optional)</label>
         <input name="name" type="text" placeholder="auto-detected" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
       </div>
-      <div className="sm:w-32">
+      <div className="sm:w-28">
         <label className="mb-1 block text-xs text-slate-500">Target price</label>
         <input
           name="targetPrice"
@@ -58,6 +60,19 @@ export function AddItemForm() {
           placeholder="optional"
           className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
+      </div>
+      <div className="sm:w-24">
+        <label className="mb-1 block text-xs text-slate-500">Currency</label>
+        <select
+          name="targetCurrency"
+          defaultValue="ILS"
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        >
+          <option value="ILS">ILS ₪</option>
+          <option value="USD">USD $</option>
+          <option value="EUR">EUR €</option>
+          <option value="GBP">GBP £</option>
+        </select>
       </div>
       <button
         type="submit"

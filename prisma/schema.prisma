@@ -17,9 +17,13 @@ model TrackedItem {
   name         String
   note         String?
   imageUrl     String?
-  /// Optional price (in the item's display currency) below which the user
-  /// wants to be alerted. Null means "just track, no target".
-  targetPrice  Decimal? @db.Decimal(10, 2)
+  /// Optional price below which the user wants to be alerted. Null means
+  /// "just track, no target". Stored with its own currency (targetCurrency)
+  /// rather than borrowed from a snapshot - the user sets this before any
+  /// price check has run, and the two can legitimately differ anyway (a
+  /// product tracked across a US and an IL store, say).
+  targetPrice    Decimal? @db.Decimal(10, 2)
+  targetCurrency String?  @db.VarChar(3)
   archived     Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
-import { formatPrice } from '@/lib/currency';
+import { formatPrice, formatTargetPrice } from '@/lib/currency';
 import { cheapestCurrentOffer, latestSnapshot, lowestEverPrice } from '@/lib/pricing';
 import { PriceHistoryChart } from '@/components/PriceHistoryChart';
 import { AddLinkForm } from '@/components/AddLinkForm';
@@ -56,7 +56,9 @@ export default async function TrackedItemPage({ params }: { params: Promise<{ it
             </p>
             <div className="mt-1 flex gap-3 text-xs text-slate-500">
               {lowestEver !== null && <span>Lowest ever: {formatPrice(lowestEver, cheapest?.currency ?? null)}</span>}
-              {item.targetPrice && <span>Target: {formatPrice(Number(item.targetPrice), cheapest?.currency ?? null)}</span>}
+              {item.targetPrice && (
+                <span>Target: {formatTargetPrice(Number(item.targetPrice), item.targetCurrency)}</span>
+              )}
             </div>
           </div>
         </div>
