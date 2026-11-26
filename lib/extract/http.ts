@@ -46,7 +46,8 @@ export async function fetchText(url: string, options: FetchTextOptions): Promise
       const response = await doFetch(url, {
         headers: {
           'User-Agent': options.userAgent,
-          Accept: 'text/html,application/xhtml+xml',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9,he;q=0.8',
         },
         signal: controller.signal,
       });

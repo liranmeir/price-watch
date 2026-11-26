@@ -4,8 +4,17 @@ import { extractFromOpenGraph } from './opengraph';
 import { isUrlAllowedByRobots } from './robots';
 import type { ExtractionResult } from './types';
 
+// A descriptive, self-identifying UA ("price-watch/1.0 ...") is the more
+// transparent choice, but in practice it gets instant-403'd by WAFs (Imperva,
+// Akamai, Cloudflare) that allow-list known crawlers and block everything
+// else by default — there's no bot-registration path for a personal tool
+// like this one. A standard desktop-browser UA is what actually gets through
+// on sites with that kind of protection, at the cost of being less
+// transparent about what's making the request. Given this app only ever
+// re-checks a handful of links the user explicitly asked to track, once a
+// day, that tradeoff is reasonable.
 export const DEFAULT_USER_AGENT =
-  'price-watch/1.0 (+https://github.com/liranmeir/price-watch; personal price-tracking tool)';
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 export interface FetchProductInfoOptions {
   timeoutMs?: number;
