@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+/// A single product the user wants to track the price of (e.g. "Dyson V10
+/// Absolute" or "Daughter's basketball shoes"). It can have several Links —
+/// the same product listed on different stores — so the dashboard can
+/// surface the cheapest current offer across all of them.
+model TrackedItem {
+  id           String   @id @default(cuid())
+  name         String
+  note         String?
+  imageUrl     String?
+  /// Optional price (in the item's display currency) below which the user
+  /// wants to be alerted. Null means "just track, no target".
+  targetPrice  Decimal? @db.Decimal(10, 2)
+  archived     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  links ProductLink[]
+
+  @@index([archived])
+}
+
+/// One store/URL where a TrackedItem can be bought. Price history lives on
+/// PriceSnapshot so we can chart it and compute "lowest ever" / "lowest now".
+model ProductLink {
+  id            String    @id @default(cuid())
+  trackedItemId String
+  trackedItem   TrackedItem @relation(fields: [trackedItemId], references: [id], onDelete: Cascade)
+
+  url           String
+  /// Human-readable store name, derived from the URL's hostname unless the
+  /// user overrides it (e.g. "Nike" instead of "www.nike.com").
+  storeName     String
+  active        Boolean   @default(true)
+
+  lastCheckedAt DateTime?
+  /// "ok" | "error" — see ExtractionStatus in lib/extract/types.ts.
+  lastStatus    String?
+  lastError     String?
+
+  createdAt     DateTime  @default(now())
+
+  snapshots PriceSnapshot[]
+
+  @@index([trackedItemId])
+}
+
+/// One point-in-time price reading for a ProductLink. Written by the cron
+/// job (app/api/cron/check-prices) and by a manual "recheck now" action.
+model PriceSnapshot {
+  id         String   @id @default(cuid())
+  linkId     String
+  link       ProductLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  price      Decimal? @db.Decimal(10, 2)
+  currency   String?
+  title      String?
+  imageUrl   String?
+  inStock    Boolean?
+
+  fetchedAt  DateTime @default(now())
+
+  @@index([linkId, fetchedAt])
+}
