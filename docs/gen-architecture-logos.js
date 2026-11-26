@@ -70,23 +70,21 @@ function edge(x1, y1, x2, y2, label, markerId, bidir) {
   <text x="${midX}" y="${midY}" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12.5" fill="${INK}">${label}</text>`;
 }
 
-const W = 1360, H = 460;
+const W = 1360, H = 320;
 
 const browserBox = box(30, 40, 190, 110, 'Browser', browserIcon(30 + 95 - 16, 40 + 14, 32, INK), '(user)');
-const cronBox = box(30, 230, 190, 110, 'Vercel Cron', iconG('siVercel', 30 + 95 - 16, 230 + 12, 32, '#000'), 'scheduled trigger');
+const cronBox = box(30, 190, 190, 110, 'Vercel Cron', iconG('siVercel', 30 + 95 - 16, 190 + 12, 32, '#000'), 'scheduled trigger');
 const appBox = box(300, 150, 260, 150, 'Next.js App', iconG('siNextdotjs', 300 + 130 - 16, 150 + 12, 32, '#000'), '(hosted on Vercel)');
 const dbBox = box(680, 20, 240, 110, 'Neon Postgres', iconG('siNeon', 680 + 120 - 16, 20 + 12, 32, '#00e599'), 'TrackedItem / ProductLink / PriceSnapshot');
 const scraperBox = box(680, 170, 200, 110, 'Scraper', scraperIcon(680 + 100 - 16, 170 + 12, 32, INK), '(lib/extract)');
 const storesBox = box(1000, 170, 330, 110, 'Store websites', iconG('siNike', 1000 + 165 - 16, 170 + 12, 32, '#111'), 'Nike, Footlocker, ...');
-const googleBox = box(680, 320, 240, 110, 'Google OAuth', iconG('siGoogle', 680 + 120 - 16, 320 + 12, 32, '#4285F4'), 'sign-in only');
 
 const edges = [
-  edge(220, 95, 300, 180, 'sign in, view dashboard', 'arrow', true),
-  edge(220, 285, 300, 260, 'triggers every 6h', 'arrow', false),
+  edge(220, 95, 300, 180, 'view dashboard', 'arrow', true),
+  edge(220, 245, 300, 260, 'triggers every 6h', 'arrow', false),
   edge(560, 190, 680, 100, 'read / write prices', 'arrow', true),
   edge(560, 230, 680, 225, 'calls', 'arrow', false),
   edge(880, 225, 1000, 225, 'fetches product pages', 'arrow', false),
-  edge(560, 270, 680, 350, 'sign-in check', 'arrow', false),
 ];
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="ui-sans-serif,system-ui,sans-serif">
@@ -101,7 +99,6 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" fon
   ${dbBox}
   ${scraperBox}
   ${storesBox}
-  ${googleBox}
   ${edges.join('\n')}
 </svg>`;
 
