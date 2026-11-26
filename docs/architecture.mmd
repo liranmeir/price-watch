@@ -1,0 +1,39 @@
+flowchart TD
+    subgraph Client
+        Browser["Browser<br/>(signed-in user)"]
+    end
+
+    subgraph Vercel["Vercel (hosting + CI/CD)"]
+        direction TB
+        NextApp["Next.js app<br/>App Router"]
+        Pages["Dashboard pages<br/>app/dashboard/*"]
+        Actions["Server actions<br/>app/actions/*"]
+        AuthRoute["NextAuth route<br/>/api/auth/[...nextauth]"]
+        CronRoute["Cron route<br/>/api/cron/check-prices"]
+        CronTrigger["Vercel Cron<br/>(vercel.json schedule)"]
+
+        NextApp --> Pages
+        NextApp --> Actions
+        NextApp --> AuthRoute
+        NextApp --> CronRoute
+        CronTrigger -- "Bearer CRON_SECRET,<br/>every 6h" --> CronRoute
+    end
+
+    subgraph Extract["lib/extract (shared by actions + cron)"]
+        Robots["robots.txt check"]
+        JsonLd["JSON-LD parser"]
+        OG["Open Graph fallback"]
+        Robots --> JsonLd --> OG
+    end
+
+    DB[("Postgres<br/>TrackedItem / ProductLink / PriceSnapshot")]
+    Google["Google OAuth<br/>(ALLOWED_EMAILS gate)"]
+    Stores["Store product pages<br/>(Nike, Footlocker, ...)"]
+
+    Browser -- "HTTPS" --> NextApp
+    Pages --> DB
+    Actions --> DB
+    Actions --> Extract
+    CronRoute --> Extract
+    Extract -- "fetch" --> Stores
+    AuthRoute --> Google

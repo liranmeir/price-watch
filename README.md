@@ -11,6 +11,11 @@ cheapest offer on one page.
 
 ## Architecture
 
+![Architecture diagram: browser talks over HTTPS to the Next.js app on Vercel, which fans out to dashboard pages, server actions, the NextAuth route, and the cron route; server actions and the cron route both go through lib/extract (robots.txt check, then JSON-LD parser, then Open Graph fallback) to reach store product pages, server actions and dashboard pages read/write Postgres, the NextAuth route checks Google OAuth against the ALLOWED_EMAILS gate, and Vercel Cron triggers the cron route every 6 hours with a bearer CRON_SECRET](docs/architecture.svg)
+
+<details>
+<summary>Mermaid source (click to expand/edit)</summary>
+
 ```mermaid
 flowchart TD
     subgraph Client
@@ -52,6 +57,13 @@ flowchart TD
     Extract -- "fetch" --> Stores
     AuthRoute --> Google
 ```
+
+`docs/architecture.mmd` is the source the image was rendered from
+(`npx @mermaid-js/mermaid-cli -i docs/architecture.mmd -o docs/architecture.svg`)
+— edit the Mermaid above and re-render if the architecture changes, so the
+image doesn't drift from the diagram's source of truth.
+
+</details>
 
 - **Vercel hosts the app and is the only CI/CD** — every push to `main`
   triggers a build; every PR gets its own preview deployment. There is no
