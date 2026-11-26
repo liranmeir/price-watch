@@ -265,18 +265,17 @@ pnpm dev
 
 ### Scheduled price checks
 
-`vercel.json` defines a cron hitting `/api/cron/check-prices` every 6 hours.
-Vercel sends `Authorization: Bearer <CRON_SECRET>` automatically when that
-env var is set on the project — see [Vercel Cron Jobs docs](https://vercel.com/docs/cron-jobs).
+`vercel.json` defines a cron hitting `/api/cron/check-prices` once a day
+(`0 8 * * *`, 08:00 UTC). Vercel sends `Authorization: Bearer <CRON_SECRET>`
+automatically when that env var is set on the project — see [Vercel Cron Jobs docs](https://vercel.com/docs/cron-jobs).
 Running elsewhere (not Vercel)? Call that same endpoint with that header
 from whatever scheduler you use (cron, GitHub Actions, etc.).
 
-> ⚠️ **Vercel's Hobby (free) plan only runs cron jobs once a day**, and only
-> at the start of an hour. The `0 */6 * * *` schedule above needs a Pro plan
-> (or higher) to actually fire every 6 hours — on Hobby, Vercel silently
-> collapses it to one run/day. If you're staying on Hobby, change the
-> schedule to e.g. `0 8 * * *` (once daily at 08:00 UTC) so what's
-> configured matches what actually runs.
+> ⚠️ **Vercel's Hobby (free) plan only allows daily cron jobs — and actually
+> enforces it at deploy time**, not just by silently downgrading. A more
+> frequent schedule (anything with `*/N` in the hour field) makes the
+> deployment itself fail with `cron_jobs_limits_reached` until you either
+> change the schedule to once a day or upgrade to Pro.
 
 ## Hosting & CI/CD (Vercel)
 
