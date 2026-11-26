@@ -9,6 +9,60 @@ add more links for the same product from other stores → a scheduled job
 rechecks all of them periodically → see price history and the current
 cheapest offer on one page.
 
+## Architecture
+
+```mermaid
+flowchart TD
+    subgraph Client
+        Browser["Browser<br/>(signed-in user)"]
+    end
+
+    subgraph Vercel["Vercel (hosting + CI/CD)"]
+        direction TB
+        NextApp["Next.js app<br/>App Router"]
+        Pages["Dashboard pages<br/>app/dashboard/*"]
+        Actions["Server actions<br/>app/actions/*"]
+        AuthRoute["NextAuth route<br/>/api/auth/[...nextauth]"]
+        CronRoute["Cron route<br/>/api/cron/check-prices"]
+        CronTrigger["Vercel Cron<br/>(vercel.json schedule)"]
+
+        NextApp --> Pages
+        NextApp --> Actions
+        NextApp --> AuthRoute
+        NextApp --> CronRoute
+        CronTrigger -- "Bearer CRON_SECRET,<br/>every 6h" --> CronRoute
+    end
+
+    subgraph Extract["lib/extract (shared by actions + cron)"]
+        Robots["robots.txt check"]
+        JsonLd["JSON-LD parser"]
+        OG["Open Graph fallback"]
+        Robots --> JsonLd --> OG
+    end
+
+    DB[("Postgres<br/>TrackedItem / ProductLink / PriceSnapshot")]
+    Google["Google OAuth<br/>(ALLOWED_EMAILS gate)"]
+    Stores["Store product pages<br/>(Nike, Footlocker, ...)"]
+
+    Browser -- "HTTPS" --> NextApp
+    Pages --> DB
+    Actions --> DB
+    Actions --> Extract
+    CronRoute --> Extract
+    Extract -- "fetch" --> Stores
+    AuthRoute --> Google
+```
+
+- **Vercel hosts the app and is the only CI/CD** — every push to `main`
+  triggers a build; every PR gets its own preview deployment. There is no
+  separate GitHub Actions workflow (see "Hosting & CI/CD" below).
+- **Server actions and the cron route share `lib/extract`** — the same
+  fallback-chain extractor backs both "add a link" (interactive) and
+  "recheck all links" (scheduled), so there's one code path to trust.
+- **Postgres is the only state** — no queue, no cache layer; `PriceSnapshot`
+  rows are append-only, which is what makes the history chart and
+  "lowest ever" computation possible.
+
 ## Why this works across almost any store, without a scraper per site
 
 Most e-commerce sites publish the same two pieces of standard metadata for
@@ -78,6 +132,43 @@ Vercel sends `Authorization: Bearer <CRON_SECRET>` automatically when that
 env var is set on the project — see [Vercel Cron Jobs docs](https://vercel.com/docs/cron-jobs).
 Running elsewhere (not Vercel)? Call that same endpoint with that header
 from whatever scheduler you use (cron, GitHub Actions, etc.).
+
+> ⚠️ **Vercel's Hobby (free) plan only runs cron jobs once a day**, and only
+> at the start of an hour. The `0 */6 * * *` schedule above needs a Pro plan
+> (or higher) to actually fire every 6 hours — on Hobby, Vercel silently
+> collapses it to one run/day. If you're staying on Hobby, change the
+> schedule to e.g. `0 8 * * *` (once daily at 08:00 UTC) so what's
+> configured matches what actually runs.
+
+## Hosting & CI/CD (Vercel)
+
+This project is meant to live entirely on Vercel — hosting *and* CI/CD,
+same as the pattern in my other dashboards:
+
+1. **Connect the repo**: Vercel → Add New Project → import
+   `liranmeir/price-watch`. Framework preset "Next.js" is auto-detected.
+2. **Database**: add Postgres via the Vercel Storage/Marketplace tab
+   (Vercel Postgres, or a Neon/Supabase integration) — it sets
+   `DATABASE_URL`/`DATABASE_URL_UNPOOLED` for you. Using something else?
+   Add those two yourself in Project Settings → Environment Variables.
+3. **Environment variables**: set everything in `.env.example` (`NEXTAUTH_URL`
+   → your production URL, `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`/`SECRET`,
+   `ALLOWED_EMAILS`, `CRON_SECRET`) in Project Settings → Environment
+   Variables. Add production's domain's `/api/auth/callback/google` to the
+   Google OAuth client's authorized redirect URIs.
+4. **Deploys = CI**: Vercel runs `pnpm build` on every push, which is
+   `prisma generate && pnpm run verify && next build` — `verify` is the
+   full Vitest suite. **A failing test fails the build and blocks the
+   deploy.** There's no separate GitHub Actions workflow; the Vercel build
+   is the only CI, so don't rely on anything outside `pnpm build` to catch
+   regressions.
+5. **Branches**: push to `main` → production deploy. Any other branch or
+   PR → its own preview deployment with a unique URL (useful for checking
+   a change before it reaches production), sharing the same env vars
+   unless you override them per-environment in Project Settings.
+6. **Cron**: once the project is on Vercel, the job in `vercel.json` shows
+   up automatically under the project's "Cron Jobs" tab — no extra setup
+   beyond `CRON_SECRET` above. See the Hobby-plan note just above.
 
 ## Data model
 
