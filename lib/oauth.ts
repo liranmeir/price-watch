@@ -14,6 +14,8 @@ import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 
 export const AUTH_CODE_TTL_MS = 10 * 60 * 1000;
 export const ACCESS_TOKEN_TTL_MS = 60 * 60 * 1000;
+/** Long-lived since there's no silent re-auth otherwise - just the login/consent screen again. */
+export const REFRESH_TOKEN_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 export const MAX_REDIRECT_URIS = 10;
 
 /** Codes and tokens are opaque; only their hash is persisted. */

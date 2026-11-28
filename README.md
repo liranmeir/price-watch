@@ -366,18 +366,26 @@ nothing.
 | PKCE | Required, S256 only — `plain` is rejected rather than accepted as a fallback |
 | Client secrets | None issued. Public clients authenticated by PKCE, per OAuth 2.1 |
 | Redirect URIs | https, or http on loopback for native clients, validated at registration |
-| Token lifetime | 1 hour, no refresh. Expired tokens are swept on the next exchange |
+| Token lifetime | Access token: 1 hour. Refresh token: 90 days, rotates on every use |
 
-Revoking access: delete the offending rows —
+Every access token is issued together with a refresh token, since this is
+a public client with no other way to silently re-auth once the access
+token expires (there's no `Authorization: Basic` secret to re-send). The
+refresh token rotates: each `grant_type=refresh_token` exchange deletes
+the old row and issues a new access+refresh pair, so a stolen-then-replayed
+refresh token is detectable — the legitimate holder's next refresh then
+fails, because its hash no longer matches any row.
+
+That rotation is also the only thing that makes **revoking access**
+reliable. Rotating `SITE_PASSWORD` invalidates every *future* consent, but
+an already-issued refresh token keeps working for up to 90 days (a token
+doesn't re-check the password after it's issued) — so to actually cut off
+a connected client, delete its rows directly:
 
 ```sql
 delete from "OAuthAccessToken" where "clientId" in (select id from "OAuthClient" where "clientId" = '<id>');
 delete from "OAuthClient" where "clientId" = '<id>';
 ```
-
-— or just rotate `SITE_PASSWORD`, which invalidates every *future*
-consent (existing tokens keep working until they expire in an hour,
-since a token doesn't re-check the password after it's issued).
 
 `APP_URL` must be the real public origin the app is reachable at
 (`https://price-watch.liranmeir.com`, not a `*.vercel.app` preview) —

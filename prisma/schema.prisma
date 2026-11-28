@@ -116,5 +116,14 @@ model OAuthAccessToken {
   clientId  String
   createdAt DateTime @default(now())
 
+  /// Public clients (PKCE, no secret) get a rotating refresh token: each use
+  /// replaces this row's hashes with a freshly generated pair rather than
+  /// reusing the old refresh token, so a stolen-then-replayed one is
+  /// detectable (the legitimate holder's next refresh will fail, since its
+  /// hash no longer matches any row). Null only for access tokens issued
+  /// before this field existed.
+  refreshTokenHash      String?   @unique
+  refreshTokenExpiresAt DateTime?
+
   client OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
 }
